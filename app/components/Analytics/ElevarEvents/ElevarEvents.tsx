@@ -65,7 +65,6 @@ export function ElevarEvents({
         const settings: Record<string, any> = {};
         const config = (
           await import(
-            /* @vite-ignore */
             `https://shopify-gtm-suite.getelevar.com/configs/${elevarSigningKey}/config.js`
           )
         ).default;
@@ -74,10 +73,7 @@ export function ElevarEvents({
           : config.script_src_custom_pages;
 
         if (scriptUrl) {
-          const {handler} = await import(
-            /* @vite-ignore */
-            scriptUrl
-          );
+          const {handler} = await import(scriptUrl);
           await handler(config, settings);
         }
         setScriptLoaded(true);

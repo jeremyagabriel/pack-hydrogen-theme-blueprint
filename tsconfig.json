@@ -17,7 +17,6 @@
     "baseUrl": ".",
     "types": [
       "@remix-run/node",
-      "vite/client",
       "@shopify/oxygen-workers-types",
       "@types/gtag.js",
       "@types/grecaptcha"
