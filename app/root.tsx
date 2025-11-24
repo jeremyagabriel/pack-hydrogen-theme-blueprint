@@ -50,8 +50,8 @@ registerStorefrontSettings();
 
 // This is important to avoid re-fetching root queries on sub-navigations
 export const shouldRevalidate: ShouldRevalidateFunction = ({
-  formMethod,
   currentUrl,
+  formMethod,
   nextUrl,
 }) => {
   // revalidate when a mutation is performed e.g add to cart, login...
