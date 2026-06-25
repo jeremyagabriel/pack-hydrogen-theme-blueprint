@@ -5,6 +5,7 @@ import type {Localization} from '@shopify/hydrogen/storefront-api-types';
 import {countries} from '~/data/countries';
 import {DEFAULT_LOCALE} from '~/lib/constants';
 import {LOCALIZATION_QUERY} from '~/data/graphql/storefront/shop';
+import {pathWithoutLocalePrefix} from '~/lib/utils';
 
 import type {I18nLocale} from '../types';
 
@@ -92,4 +93,78 @@ export async function redirectLinkToBuyerLocale({
   }
 
   return undefined;
+}
+
+interface LocaleAlternate {
+  language: string;
+  url: string;
+  default?: boolean;
+}
+
+/**
+ * Build the list of hreflang alternates for the current page, one per market
+ * Shopify actually serves (from `localization.availableCountries`), plus an
+ * `x-default` pointing at the unprefixed default-locale version.
+ *
+ * These feed `SeoConfig.alternates`, which `getSeoMeta` renders as
+ * `<link rel="alternate" hreflang="..." href="..." />` tags. They let search
+ * engines group the per-market URLs (`/en-ca/...`, `/en-fr/...`, etc.) as one
+ * page instead of indexing each as duplicate content, and serve the right
+ * regional version to users.
+ *
+ * @see https://developers.google.com/search/docs/specialty/international/localized-versions
+ */
+export async function getLocaleAlternates({
+  context,
+  request,
+}: {
+  context: AppLoadContext;
+  request: Request;
+}): Promise<LocaleAlternate[]> {
+  const {storefront} = context;
+
+  let availableCountries: Localization['availableCountries'] = [];
+  try {
+    const {localization}: {localization: Localization} = await storefront.query(
+      LOCALIZATION_QUERY,
+      {
+        variables: {
+          country: storefront.i18n.country,
+          language: storefront.i18n.language,
+        },
+        cache: storefront.CacheLong(),
+      },
+    );
+    availableCountries = localization?.availableCountries || [];
+  } catch {
+    // Never let an hreflang lookup break page rendering.
+    return [];
+  }
+
+  if (!availableCountries.length) return [];
+
+  const {origin, pathname} = new URL(request.url);
+  // Strip any existing locale prefix so we can re-prefix per market.
+  const pathWithoutLocale = pathWithoutLocalePrefix(pathname);
+  const language = DEFAULT_LOCALE.language.toLowerCase();
+  const defaultCountry = DEFAULT_LOCALE.country.toLowerCase();
+
+  const alternates: LocaleAlternate[] = availableCountries.map((country) => {
+    const isoCode = country.isoCode.toLowerCase();
+    // The default market is served without a locale prefix.
+    const prefix = isoCode === defaultCountry ? '' : `/${language}-${isoCode}`;
+    return {
+      language: `${language}-${country.isoCode.toUpperCase()}`,
+      url: `${origin}${prefix}${pathWithoutLocale}`,
+    };
+  });
+
+  // x-default → the unprefixed default-locale version of this page.
+  alternates.push({
+    language: 'x',
+    default: true,
+    url: `${origin}${pathWithoutLocale}`,
+  });
+
+  return alternates;
 }

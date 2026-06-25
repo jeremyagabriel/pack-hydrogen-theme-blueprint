@@ -1,9 +1,8 @@
-import {memo, useMemo} from 'react';
+import {memo, useCallback, useMemo} from 'react';
 import {useMoney} from '@shopify/hydrogen-react';
 import clsx from 'clsx';
 import type {CartCodeDiscountAllocation} from '@shopify/hydrogen/storefront-api-types';
 
-import {Link} from '~/components/Link';
 import {prefixNonUsdDollar} from '~/hooks/product/useVariantPrices';
 import {useCart, useCustomer, useLocale} from '~/hooks';
 
@@ -18,6 +17,8 @@ export const CartTotals = memo(({settings}: CartTotalsProps) => {
     checkoutUrl = '',
     cost,
     discountAllocations = [],
+    flushPendingCartUpdates,
+    isSyncingCart,
     totalQuantity = 0,
   } = useCart();
 
@@ -29,6 +30,18 @@ export const CartTotals = memo(({settings}: CartTotalsProps) => {
     }
     return url.toString();
   }, [checkoutUrl, !!customer]);
+
+  // Flush any pending optimistic quantity changes to the server before leaving
+  // for checkout, so the buyer can't check out with a stale quantity.
+  const handleCheckout = useCallback(
+    async (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      if (!authenticatedCheckoutUrl) return;
+      await flushPendingCartUpdates();
+      window.location.assign(authenticatedCheckoutUrl);
+    },
+    [authenticatedCheckoutUrl, flushPendingCartUpdates],
+  );
 
   const parsedDiscountAllocations = useMemo(() => {
     const codes: string[] = [];
@@ -96,7 +109,14 @@ export const CartTotals = memo(({settings}: CartTotalsProps) => {
         totalQuantity ? 'flex' : 'hidden',
       )}
     >
-      <div className="flex flex-col gap-1">
+      <div
+        className={clsx(
+          'flex flex-col gap-1 transition-opacity',
+          // Money is never optimistic — keep the last server-computed values
+          // visible but hint that they're recalculating while a line change syncs.
+          isSyncingCart && 'opacity-50',
+        )}
+      >
         {isDiscounted && (
           <>
             {subtotalAmount !== totalAmount && (
@@ -123,9 +143,13 @@ export const CartTotals = memo(({settings}: CartTotalsProps) => {
         {subtext && <p className="text-xs">{subtext}</p>}
       </div>
 
-      <Link className="btn-primary w-full" to={authenticatedCheckoutUrl}>
+      <button
+        className="btn-primary w-full"
+        onClick={handleCheckout}
+        type="button"
+      >
         {checkoutText}
-      </Link>
+      </button>
     </div>
   );
 });

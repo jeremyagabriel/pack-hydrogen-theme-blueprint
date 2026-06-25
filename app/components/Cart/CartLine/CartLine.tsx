@@ -15,7 +15,7 @@ import {useCartLinePrices} from './useCartLinePrices';
 export const CartLine = memo(({closeCart, line}: CartLineProps) => {
   const {discountAllocations, merchandise, quantity} = line;
 
-  const {handleDecrement, handleIncrement, handleRemove, isUpdatingLine} =
+  const {handleDecrement, handleIncrement, handleRemove, isSyncingCart} =
     useCartLine({line});
 
   const {price, compareAtPrice} = useCartLinePrices({line});
@@ -85,7 +85,7 @@ export const CartLine = memo(({closeCart, line}: CartLineProps) => {
           <QuantitySelector
             handleDecrement={handleDecrement}
             handleIncrement={handleIncrement}
-            isUpdating={isUpdatingLine}
+            pending={isSyncingCart}
             productTitle={merchandise.product.title}
             quantity={quantity}
           />

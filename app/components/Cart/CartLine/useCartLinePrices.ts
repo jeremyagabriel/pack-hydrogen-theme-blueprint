@@ -5,9 +5,18 @@ import type {CartLine} from '@shopify/hydrogen/storefront-api-types';
 import {useLocale} from '~/hooks';
 import {prefixNonUsdDollar} from '~/hooks/product/useVariantPrices';
 
-export function useCartLinePrices({line}: {line: CartLine}) {
+export function useCartLinePrices({
+  line,
+}: {
+  line: CartLine & {_serverQuantity?: number};
+}) {
   const {cost, discountAllocations, id, quantity = 1} = {...line};
   const {currency} = useLocale();
+
+  // When a line's quantity is optimistic, `cost` is still the last server value
+  // (money is never optimistic), so divide by the quantity that matches that
+  // cost to keep the displayed per-unit price stable until reconcile.
+  const pricingQuantity = line._serverQuantity ?? quantity;
 
   const discountAmount = useMemo(() => {
     if (!discountAllocations) return 0;
@@ -24,9 +33,9 @@ export function useCartLinePrices({line}: {line: CartLine}) {
     if (!cost?.subtotalAmount?.amount) return '';
     return (
       (Number(cost.subtotalAmount.amount) - discountAmount) /
-      quantity
+      pricingQuantity
     ).toFixed(2);
-  }, [cost?.subtotalAmount, discountAmount, quantity]);
+  }, [cost?.subtotalAmount, discountAmount, pricingQuantity]);
 
   const formattedPrice = useMoney({
     amount: totalAmountPerQuantity,

@@ -27,7 +27,10 @@ import {
   getSiteSettings,
 } from '~/lib/server-utils/settings.server';
 import {getProductGroupings} from '~/lib/server-utils/pack.server';
-import {redirectLinkToBuyerLocale} from '~/lib/server-utils/locale.server';
+import {
+  getLocaleAlternates,
+  redirectLinkToBuyerLocale,
+} from '~/lib/server-utils/locale.server';
 import {seoPayload} from '~/lib/server-utils/seo.server';
 import {getModalProduct} from '~/lib/server-utils/product.server';
 import {registerSections} from '~/sections';
@@ -105,16 +108,18 @@ export async function loader({context, request}: Route.LoaderArgs) {
       return redirect(redirectedLink.to, redirectedLink.options);
   }
 
-  const [shop, siteSettings, ENV, isLoggedIn]: [
+  const [shop, siteSettings, ENV, isLoggedIn, localeAlternates]: [
     Shop,
     RootSiteSettings,
     Record<string, string>,
     boolean,
+    Awaited<ReturnType<typeof getLocaleAlternates>>,
   ] = await Promise.all([
     getShop(context),
     getSiteSettings(context),
     getPublicEnvs({context, request}),
     customerAccount.isLoggedIn(),
+    getLocaleAlternates({context, request}),
   ]);
 
   const groupingsPromise = getProductGroupings(context);
@@ -143,6 +148,9 @@ export async function loader({context, request}: Route.LoaderArgs) {
     siteSettings,
     url: request.url,
   }) as Record<string, any>;
+  // hreflang alternates for Shopify Markets locales, rendered as
+  // <link rel="alternate" hreflang="..."> on every page via getSeoMeta.
+  if (localeAlternates.length) seo.alternates = localeAlternates;
   const consent = {
     checkoutDomain: env.PUBLIC_CHECKOUT_DOMAIN,
     storefrontAccessToken: env.PUBLIC_STOREFRONT_API_TOKEN,

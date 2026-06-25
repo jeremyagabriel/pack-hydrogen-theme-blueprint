@@ -1,49 +1,34 @@
-import {useCallback, useState} from 'react';
+import {useCallback} from 'react';
 import type {CartLine} from '@shopify/hydrogen/storefront-api-types';
 
 import {useCart} from '~/hooks';
 
 export const useCartLine = ({line}: {line: CartLine}) => {
   const {id, quantity} = {...line};
-  const {linesRemove, linesUpdate} = useCart();
+  const {flushPendingCartUpdates, isSyncingCart, setLineQuantity} = useCart();
 
-  const [isUpdatingLine, setIsUpdatingLine] = useState(false);
-  const [isRemovingLine, setIsRemovingLine] = useState(false);
+  // `quantity` here is already the optimistic quantity (the overlay is merged
+  // into useCart().lines), so incrementing off it keeps rapid clicks correct.
+  const handleDecrement = useCallback(() => {
+    // A quantity of 0 is routed to a line removal by the flush.
+    setLineQuantity(id, Math.max(0, quantity - 1));
+  }, [id, quantity, setLineQuantity]);
 
-  const handleDecrement = useCallback(async () => {
-    if (quantity > 1) {
-      setIsUpdatingLine(true);
-      await linesUpdate([{id, quantity: quantity - 1}]);
-      setIsUpdatingLine(false);
-    } else {
-      setIsRemovingLine(true);
-      await linesRemove([id]);
-      setIsRemovingLine(false);
-    }
-  }, [id, linesRemove, linesUpdate, quantity]);
+  const handleIncrement = useCallback(() => {
+    setLineQuantity(id, quantity + 1);
+  }, [id, quantity, setLineQuantity]);
 
-  const handleIncrement = useCallback(async () => {
-    setIsUpdatingLine(true);
-    await linesUpdate([
-      {
-        id,
-        quantity: quantity + 1,
-      },
-    ]);
-    setIsUpdatingLine(false);
-  }, [id, linesUpdate, quantity]);
-
-  const handleRemove = useCallback(async () => {
-    setIsRemovingLine(true);
-    await linesRemove([id]);
-    setIsRemovingLine(false);
-  }, [id, linesRemove]);
+  const handleRemove = useCallback(() => {
+    // Removing via the X is a deliberate action — apply it immediately rather
+    // than waiting out the debounce window.
+    setLineQuantity(id, 0);
+    void flushPendingCartUpdates();
+  }, [id, flushPendingCartUpdates, setLineQuantity]);
 
   return {
     handleDecrement,
     handleIncrement,
     handleRemove,
-    isRemovingLine,
-    isUpdatingLine,
+    isSyncingCart,
   };
 };
